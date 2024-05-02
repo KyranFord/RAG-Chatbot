@@ -8,7 +8,7 @@ from langchain_community.embeddings import OllamaEmbeddings
 from langchain.prompts import PromptTemplate
 from langchain_community.llms import Ollama 
 
-data_path = "./doc.pdf"
+data_path = "./document.pdf"
 text_splitter1 = RecursiveCharacterTextSplitter(
     chunk_size=3000,
     chunk_overlap=200,
@@ -24,18 +24,21 @@ documents = PyPDFLoader(data_path).load_and_split(text_splitter=text_splitter1)
 
 #embedding_func = OllamaEmbeddings(model="nomic-embed-text:latest")
 embedding_func = OllamaEmbeddings(model="nomic-embed-text:latest")
-print("embedding")
-vectordb = Chroma.from_documents(documents, embedding=embedding_func, persist_directory="./embeddingsarmy")
-#vectordb = Chroma(persist_directory="./embeddingsarmy", embedding_function=embedding_func)
-template = """<s>[INST] Only generate prompts from context give - {context} </s>[INST] [INST] Answer the following question - {question}[/INST]"""
+#vectordb = Chroma.from_documents(documents, embedding=embedding_func, persist_directory="./embeddingsarmy")
+vectordb = Chroma(persist_directory="./embeddingsarmy", embedding_function=embedding_func)
+template = """
+            [INST] You are a chatbot in a data critical environment, where accuracy to context given is cricial. If there is no relevant context, do not answer the prompt using data you were trained on. </s>[/INST]
+            <s>[INST] Only generate prompts from context given - {context} </s>[INST] 
+            <s>[INST] Answer the following question - {question} </s>[/INST]
+            """
 pt = PromptTemplate(
             template=template, input_variables=["context", "question"]
         )
 
 rag = RetrievalQA.from_chain_type(
-            llm=Ollama(model="mistral:7b-instruct-v0.2-q5_K_M", num_ctx = 32768),
+            llm=Ollama(model="mistral:7b-instruct-v0.2-q6_K", num_ctx = 8192),
             retriever=vectordb.as_retriever(),
-            memory=ConversationSummaryMemory(llm = Ollama(model="mistral:7b-instruct-v0.2-q5_K_M")),
+            memory=ConversationSummaryMemory(llm = Ollama(model="mistral:7b-instruct-v0.2-q6_K")),
             chain_type_kwargs={"prompt": pt, "verbose": True},
         )
-print(rag.invoke("Question"))
+print(rag.invoke("Question?"))
